@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synchronize — Охваты кампании</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e2e8f0;
+    --muted: #6b7280;
+    --accent: #6366f1;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --pink: #ec4899;
+    --blue: #3b82f6;
+    --purple: #8b5cf6;
+    --teal: #14b8a6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+  header { padding: 32px 40px 16px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  header p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .updated { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .grid { display: grid; gap: 20px; padding: 24px 40px 40px; grid-template-columns: 1fr 1fr; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .card.full { grid-column: 1 / -1; }
+  .card h2 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .card .subtitle { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-wrap.tall { height: 320px; }
+  .chart-wrap.yoy { height: 300px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; padding: 16px 20px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Synchronize — Охваты кампании</h1>
+  <p>Instagram (посты + Reels) · TG Synchronews · Блогеры (TG / Instagram / YouTube)</p>
+  <div class="updated">Обновлено: <span id="updated-date"><!-- DATA_UPDATED --></span></div>
+</header>
+
+<div class="grid">
+
+  <!-- 1. IG охваты -->
+  <div class="card">
+    <h2>Instagram охваты</h2>
+    <div class="subtitle">Охват постов + Reels за месяц (LiveDune API)</div>
+    <div class="chart-wrap"><canvas id="igChart"></canvas></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>Посты</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>Reels</div>
+    </div>
+  </div>
+
+  <!-- 2. TG Synchronews -->
+  <div class="card">
+    <h2>TG Synchronews</h2>
+    <div class="subtitle">Просмотры постов в месяц (LiveDune)</div>
+    <div class="chart-wrap"><canvas id="tgChart"></canvas></div>
+  </div>
+
+  <!-- 3. Блогеры stacked -->
+  <div class="card full">
+    <h2>Блогеры — охваты по платформам</h2>
+    <div class="subtitle">Суммарные охваты размещений у блогеров (2 источника: основной лист + Razmescheniya)</div>
+    <div class="chart-wrap tall"><canvas id="blogChart"></canvas></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>TG</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>Instagram</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>YouTube</div>
+    </div>
+  </div>
+
+  <!-- 4. Все каналы суммарно -->
+  <div class="card full">
+    <h2>Суммарные охваты — все каналы</h2>
+    <div class="subtitle">IG посты + IG Reels + TG Synchronews + Блогеры всего</div>
+    <div class="chart-wrap tall"><canvas id="totalChart"></canvas></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#6366f1"></div>IG посты</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div>IG Reels</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#14b8a6"></div>TG Synchronews</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Блог TG</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Блог IG</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Блог YT</div>
+    </div>
+  </div>
+
+  <!-- 5. YoY -->
+  <div class="card full">
+    <h2>Год к году — суммарные охваты</h2>
+    <div class="subtitle">Сравнение общих охватов по месяцам: 2023 vs 2024 vs 2025 vs 2026</div>
+    <div class="chart-wrap yoy"><canvas id="yoyChart"></canvas></div>
+    <div class="legend" id="yoyLegend"></div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// DATA — auto-generated by update_dashboard.py
+// ============================================================
+const DATA = /* DATA_JSON */{"months":["2023-07","2023-08","2023-09","2023-10","2023-11","2023-12","2024-01","2024-02","2024-03","2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03"],"ig_posts":[707326,1166058,281449,526180,488801,298482,0,0,251772,2285115,3706134,3597451,4767819,3525280,5582540,4322120,3694527,5378889,5624165,5313756,5572416,4994202,4536963,5330474,5136732,7247682,4265551,4221751,3022655,3968234,5444569,7828948,7967392],"ig_reels":[1212102,3450015,2035643,5130774,1178413,1674153,1751132,660438,561134,2665269,3435011,2453738,2062993,1613919,2988223,1294430,5780551,2574759,4398310,16347151,8444040,6741945,3178682,1776286,3965832,6130540,4307379,2901994,1399422,3224873,4102755,4671807,7235797],"tg_sync":[657773,632448,590027,590742,1006585,761548,709575,929335,993168,833565,746377,647375,575276,753501,669382,634929,557201,447901,441304,458272,456516,440495,521569,425274,508045,440765,398097,345905,234239,417979,366503,363364,221492],"blog_tg":[151000,449000,306000,736000,275000,397000,182000,249000,249000,495000,307000,319000,223000,493000,261000,260000,736000,435000,392000,373000,528000,467000,212000,384000,252000,749000,375747,389152,607875,982492,499060,744214,346816],"blog_ig":[788000,1500000,720000,629000,1400000,729000,276000,319000,270000,490000,205000,233000,72000,493000,215000,228000,278000,395000,258000,378000,444000,302000,448000,501000,106000,421000,0,0,0,0,0,0,0],"blog_yt":[204000,5300000,6300000,15600000,5300000,8300000,3100000,5700000,1900000,1500000,1700000,1700000,617000,1800000,2900000,480000,1900000,695000,330000,401000,1100000,426000,127000,209000,27000,321000,10903,53400,91400,70660,28935,0,33000]}/* /DATA_JSON */;
+
+const UPDATED = "<!-- DATA_UPDATED -->";
+
+document.getElementById('updated-date').textContent = UPDATED || new Date().toLocaleDateString('ru-RU');
+
+// ============================================================
+// HELPERS
+// ============================================================
+const M = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1000 ? Math.round(n/1000)+'K' : n;
+
+const MONTH_LABELS = DATA.months.map(m => {
+  const [y, mo] = m.split('-');
+  const names = ['','янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  return names[+mo] + ' ' + y.slice(2);
+});
+
+const defaultOpts = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#1a1d27', borderColor: '#2a2d3a', borderWidth: 1,
+    titleColor: '#e2e8f0', bodyColor: '#9ca3af',
+    callbacks: { label: ctx => ' ' + M(ctx.raw) }
+  }},
+  scales: {
+    x: { grid: { color: '#1e2130' }, ticks: { color: '#6b7280', font: { size: 10 }, maxTicksLimit: 12 } },
+    y: { grid: { color: '#1e2130' }, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => M(v) } }
+  }
+};
+
+const stackedOpts = JSON.parse(JSON.stringify(defaultOpts));
+stackedOpts.scales.x.stacked = true;
+stackedOpts.scales.y.stacked = true;
+
+// ============================================================
+// 1. IG Chart
+// ============================================================
+new Chart(document.getElementById('igChart'), {
+  type: 'bar',
+  data: {
+    labels: MONTH_LABELS,
+    datasets: [
+      { label: 'Посты', data: DATA.ig_posts, backgroundColor: '#6366f1cc', stack: 'ig' },
+      { label: 'Reels', data: DATA.ig_reels, backgroundColor: '#ec4899cc', stack: 'ig' },
+    ]
+  },
+  options: { ...stackedOpts }
+});
+
+// ============================================================
+// 2. TG Chart
+// ============================================================
+new Chart(document.getElementById('tgChart'), {
+  type: 'line',
+  data: {
+    labels: MONTH_LABELS,
+    datasets: [{
+      label: 'TG Synchronews', data: DATA.tg_sync,
+      borderColor: '#14b8a6', backgroundColor: '#14b8a620',
+      borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3
+    }]
+  },
+  options: { ...defaultOpts }
+});
+
+// ============================================================
+// 3. Bloggers Chart
+// ============================================================
+new Chart(document.getElementById('blogChart'), {
+  type: 'bar',
+  data: {
+    labels: MONTH_LABELS,
+    datasets: [
+      { label: 'TG', data: DATA.blog_tg, backgroundColor: '#3b82f6cc', stack: 'b' },
+      { label: 'Instagram', data: DATA.blog_ig, backgroundColor: '#ec4899cc', stack: 'b' },
+      { label: 'YouTube', data: DATA.blog_yt, backgroundColor: '#f59e0bcc', stack: 'b' },
+    ]
+  },
+  options: { ...stackedOpts }
+});
+
+// ============================================================
+// 4. Total Chart
+// ============================================================
+const totalData = DATA.months.map((_, i) =>
+  (DATA.ig_posts[i]||0) + (DATA.ig_reels[i]||0) + (DATA.tg_sync[i]||0) +
+  (DATA.blog_tg[i]||0) + (DATA.blog_ig[i]||0) + (DATA.blog_yt[i]||0)
+);
+
+new Chart(document.getElementById('totalChart'), {
+  type: 'bar',
+  data: {
+    labels: MONTH_LABELS,
+    datasets: [
+      { label: 'IG посты',   data: DATA.ig_posts,  backgroundColor: '#6366f1cc', stack: 't' },
+      { label: 'IG Reels',   data: DATA.ig_reels,  backgroundColor: '#ec4899cc', stack: 't' },
+      { label: 'TG Sync',    data: DATA.tg_sync,   backgroundColor: '#14b8a6cc', stack: 't' },
+      { label: 'Блог TG',    data: DATA.blog_tg,   backgroundColor: '#3b82f6cc', stack: 't' },
+      { label: 'Блог IG',    data: DATA.blog_ig,   backgroundColor: '#f97316cc', stack: 't' },
+      { label: 'Блог YT',    data: DATA.blog_yt,   backgroundColor: '#10b981cc', stack: 't' },
+    ]
+  },
+  options: { ...stackedOpts }
+});
+
+// ============================================================
+// 5. YoY Chart
+// ============================================================
+const MONTH_NAMES = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const YOY_COLORS = { '2023': '#6366f1', '2024': '#10b981', '2025': '#f59e0b', '2026': '#ec4899' };
+
+// Group totals by year-month
+const byYearMonth = {};
+DATA.months.forEach((m, i) => {
+  const [y, mo] = m.split('-');
+  if (!byYearMonth[y]) byYearMonth[y] = Array(12).fill(null);
+  const total = (DATA.ig_posts[i]||0) + (DATA.ig_reels[i]||0) + (DATA.tg_sync[i]||0) +
+                (DATA.blog_tg[i]||0) + (DATA.blog_ig[i]||0) + (DATA.blog_yt[i]||0);
+  byYearMonth[y][+mo - 1] = total;
+});
+
+const yoyDatasets = Object.entries(byYearMonth).map(([year, vals]) => ({
+  label: year,
+  data: vals,
+  borderColor: YOY_COLORS[year] || '#888',
+  backgroundColor: (YOY_COLORS[year] || '#888') + '20',
+  borderWidth: 2,
+  pointRadius: 4,
+  pointHoverRadius: 6,
+  tension: 0.3,
+  fill: false,
+  spanGaps: false,
+}));
+
+new Chart(document.getElementById('yoyChart'), {
+  type: 'line',
+  data: { labels: MONTH_NAMES, datasets: yoyDatasets },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#1a1d27', borderColor: '#2a2d3a', borderWidth: 1,
+      titleColor: '#e2e8f0', bodyColor: '#9ca3af',
+      callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + M(ctx.raw) }
+    }},
+    scales: {
+      x: { grid: { color: '#1e2130' }, ticks: { color: '#6b7280', font: { size: 11 } } },
+      y: { grid: { color: '#1e2130' }, ticks: { color: '#6b7280', font: { size: 10 }, callback: v => M(v) } }
+    }
+  }
+});
+
+// YoY legend
+const legend = document.getElementById('yoyLegend');
+Object.entries(YOY_COLORS).forEach(([year, color]) => {
+  if (!byYearMonth[year]) return;
+  legend.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div>${year}</div>`;
+});
+</script>
+</body>
+</html>
