@@ -83,6 +83,13 @@
     </div>
   </div>
 
+  <!-- 2c. TG ₽/1K views -->
+  <div class="card">
+    <h2>TG канал — ₽ на 1К просмотров</h2>
+    <div class="subtitle">Выручка TG / просмотры × 1000. Показывает монетизацию канала</div>
+    <div class="chart-wrap"><canvas id="tgCoefChart"></canvas></div>
+  </div>
+
   <!-- 3. Блогеры stacked -->
   <div class="card full">
     <h2>Блогеры — охваты по платформам</h2>
@@ -352,6 +359,53 @@ new Chart(document.getElementById('tgRevChart'), {
         type: 'linear', position: 'right',
         grid: { drawOnChartArea: false },
         ticks: { color: '#a78bfa', font: { size: 10 }, callback: v => M(v) + ' ₽' }
+      }
+    }
+  }
+});
+
+// ============================================================
+// 2c. TG ₽/1K views
+// ============================================================
+const tgCoef = DATA.months.map((_, i) => {
+  const v = DATA.tg_sync[i];
+  const r = DATA.tg_revenue[i] || 0;
+  return v > 0 ? Math.round(r / v * 1000) : null;
+});
+
+new Chart(document.getElementById('tgCoefChart'), {
+  type: 'line',
+  data: {
+    labels: MONTH_LABELS,
+    datasets: [{
+      label: '₽ / 1K просмотров TG',
+      data: tgCoef,
+      borderColor: '#a78bfa',
+      backgroundColor: '#a78bfa20',
+      borderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      fill: true,
+      tension: 0.3,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1d27', borderColor: '#2a2d3a', borderWidth: 1,
+        titleColor: '#e2e8f0', bodyColor: '#9ca3af',
+        callbacks: { label: ctx => ' ' + ctx.raw + ' ₽/1K просмотров' }
+      }
+    },
+    scales: {
+      x: { grid: { color: '#1e2130' }, ticks: { color: '#6b7280', font: { size: 10 }, maxTicksLimit: 12 } },
+      y: {
+        grid: { color: '#1e2130' },
+        ticks: { color: '#a78bfa', font: { size: 10 }, callback: v => v + ' ₽/K' },
+        beginAtZero: true
       }
     }
   }
